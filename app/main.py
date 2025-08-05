@@ -1,63 +1,20 @@
-from fastapi import FastAPI, HTTPException, status
+from contextlib import asynccontextmanager
 
-from app.models import Database, PostCreate, PostModel
+from fastapi import FastAPI
 
-app = FastAPI()
-database = Database()
-
-# posts = {
-#     0: PostModel.model_validate(
-#         {
-#             'id': 0,
-#             'title': 'My First Blog Post',
-#             'content': 'This is the content of my first blog post.',
-#             'category': 'Technology',
-#             'tags': ['Tech', 'Programming'],
-#             'createdAt': '2021-09-01T12:00:00Z',
-#             'updatedAt': '2021-09-01T12:00:00Z',
-#         }
-#     ),
-#     1: PostModel.model_validate(
-#         {
-#             'id': 1,
-#             'title': 'My Second Blog Post',
-#             'content': 'This is the content of my second blog post.',
-#             'category': 'Music',
-#             'tags': ['TAG1', 'TAG2'],
-#             'createdAt': '2021-09-01T12:00:00Z',
-#             'updatedAt': '2021-09-01T12:00:00Z',
-#         }
-#     ),
-#     2: PostModel.model_validate(
-#         {
-#             'id': 2,
-#             'title': 'My Second Blog Post',
-#             'content': 'This is the content of my second blog post.',
-#             'category': 'Math',
-#             'tags': ['Blah', 'YUR'],
-#             'createdAt': '2021-09-01T12:00:00Z',
-#             'updatedAt': '2021-09-01T12:00:00Z',
-#         }
-#     ),
-# }
+from app.database import create_db_and_tables
+from app.routes import router as post_router
 
 
-# TODO: Can add 400 error for missing fields
-# "message": f"Missing required fields: {', '.join(missing_fields)}",
-@app.post('/posts', status_code=status.HTTP_201_CREATED)
-def create_post(post: PostCreate) -> PostModel:
-    id = len(database.data) + 1
-
-    post = post.to_model(id)
-    database.data[id] = post
-
-    return post
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Before yield in on startup and after in on exit
+    # TODO: For production you would probably use a migration script
+    # that runs before you start your app. (SQLModel will have migration
+    # utilities wrapping Alembic, but for now, you can use Alembic directly.)
+    create_db_and_tables()
+    yield
 
 
-@app.get('/posts/{post_id}')
-def get_post(post_id: int) -> PostModel:
-    if post_id not in posts:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Item not found'
-        )
-    return posts[post_id]
+app = FastAPI(lifespan=lifespan)
+app.include_router(post_router)

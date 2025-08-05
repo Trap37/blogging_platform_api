@@ -1,91 +1,42 @@
-import os
+from datetime import datetime, timezone
+from typing import Annotated
 
-import json
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
-from pydantic.alias_generators import to_camel
-from datetime import datetime
-
-from config import BASEDIR
+from fastapi import Query
+from pydantic import BaseModel
+from sqlmodel import JSON, Field, SQLModel
 
 
-class Database:
-    data: dict[int, 'PostModel']
-    POSTS_DIR = f'{BASEDIR}/posts.json'
-
-    def __init__(self):
-        if not os.path.exists(self.POSTS_DIR):
-            os.makedirs(self.POSTS_DIR)
-
-        try:
-            with open(self.POSTS_DIR, 'r') as f:
-                self.data = {
-                    id: PostModel.model_construct(data)
-                    for id, data in json.load(f).items()
-                }
-        except json.JSONDecodeError as e:
-            raise Exception(
-                f'Json decode error in posts dir. You must correct the json before loading the database. Path: "{self.POSTS_DIR}"'
-            ) from e
-
-    def save(self):
-        try:
-            with open(self.POSTS_DIR, 'w') as f:
-                self.data = json.dump(self.data, f)
-        except json.JSONDecodeError as e:
-            raise Exception(
-                f'Json decode error in posts dir. You must correct the json before loading the database. Path: "{self.POSTS_DIR}"'
-            ) from e
-
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-        if name == 'data':
-            self.save()
-
-    # FEATURE: Maybe add a cache here or something?
-    # Could add a second dict to the database with the validated models in them and check
-    # if they were already loaded. Might be a waste because model_construct is already so fast
-    def get(self, id: int) -> 'PostModel':
-        return PostModel.model_construct(*self.data[id])
+class FilterParams(BaseModel):
+    filter: str = ''
 
 
-# TODO: Should create enum of all options for tags and categories
-class PostCreate(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    title: str
-    content: str
-    category: str
-    tags: list[str] = []
-
-    # TODO: Should use model_construct here instead for better performance
-    # This data is already validated so no need to revalidate
-    def to_model(self, id: int):
-        return PostModel.model_construct(
-            id=id,
-            title=self.title,
-            content=self.content,
-            category=self.category,
-            tags=self.tags,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-        )
+FilterQuery = Annotated[FilterParams, Query()]
 
 
-# NOTE: Do not instantiate this directly
-# TODO: Maybe use strings instead of datetime classes?
-class PostModel(PostCreate):
-    id: int
-    created_at: datetime = Field(datetime.now())
-    updated_at: datetime = Field(datetime.now())
+class PostBase(SQLModel):
+    title: str = Field(index=True)
+    content: str = Field()
+    category: str = Field(index=True)
+    tags: list[str] = Field(index=True, sa_type=JSON)
 
-    @field_serializer('created_at', 'updated_at')
-    def date_to_string(self, date: datetime) -> str:
-        return date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    def __setattr__(self, name, value):
-        if name not in {'updated_at', 'created_at'} and hasattr(self, name):
-            super().__setattr__('updated_at', datetime.now())
-        super().__setattr__(name, value)
+class PostPrivate(PostBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=lambda: datetime.now(timezone.utc))
 
-    def to_json(self):
-        return self.model_dump_json(by_alias=True)
+
+class PostPublic(PostBase):
+    id: int = Field()
+    created_at: datetime = Field()
+    updated_at: datetime = Field()
+
+
+class PostCreate(PostBase): ...
+
+
+class PostUpdate(SQLModel):
+    title: str | None = Field(default=None)
+    content: str | None = Field(default=None)
+    category: str | None = Field(default=None)
+    tags: list[str] = Field(default_factory=list, sa_type=JSON)
