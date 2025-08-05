@@ -1,7 +1,8 @@
 from sqlmodel import Session, SQLModel, create_engine
 
-from app import config
+from config import Config
 
+config = Config()
 connect_args = {'check_same_thread': False}
 engine = create_engine(config.SQLALCHEMY_DATABASE_URI, connect_args=connect_args)
 

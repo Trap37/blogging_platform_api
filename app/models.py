@@ -22,8 +22,8 @@ class PostBase(SQLModel):
 
 class PostPrivate(PostBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
 
 class PostPublic(PostBase):
