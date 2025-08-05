@@ -1,7 +1,7 @@
 [project]
 name = "blogging-platform-api"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Blogging Platform API Project from roadmap.sh"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
